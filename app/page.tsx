@@ -1,8 +1,8 @@
 export default async function Home() {
-  const res = await fetch(
-    "https://omega-core-production.up.railway.app/ledger/decisions",
-    { cache: "no-store" }
-  )
+  const res = await fetch(`${process.env.NEXT_PUBLIC_OMEGA_CORE_URL}/ledger/decisions`, {
+  cache: "no-store"
+})
+
 
   const data = await res.json()
 
