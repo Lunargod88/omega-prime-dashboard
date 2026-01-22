@@ -4,7 +4,9 @@
 import React, { useEffect, useMemo, useState } from "react"
 import styles from "./OmegaStyles.module.css"
 
-type Me = { user_id: string; role: "ADMIN" | "CONFIRM" | "READ" }
+type Role = "ADMIN" | "CONFIRM" | "READ"
+type Me = { user_id: string; role: Role }
+
 type Controls = {
   kill_switch: boolean
   market_mode: "EQUITY" | "CRYPTO"
@@ -30,290 +32,410 @@ type Decision = {
   payload?: any
 }
 
-const CORE = process.env.NEXT_PUBLIC_OMEGA_CORE_URL || process.env.NEXT_PUBLIC_CORE_URL || ""
-const USER_ID = process.env.NEXT_PUBLIC_USER_ID || ""
-const USER_TOKEN = process.env.NEXT_PUBLIC_USER_TOKEN || ""
-
-function stanceLabel(s: Decision["stance"] | undefined) {
-  if (!s) return "STAND DOWN"
-  if (s === "DENIED") return "STAND DOWN"
-  if (s === "STAND_DOWN") return "STAND DOWN"
-  return s
+type DecisionsResponse = {
+  count: number
+  decisions: Decision[]
 }
 
-function stanceTone(s: Decision["stance"] | undefined) {
-  if (!s) return "danger"
-  if (s === "ENTER") return "good"
-  if (s === "HOLD") return "warn"
-  return "danger"
+function tierRank(t: string) {
+  // Your official tiers: S+++, S++, S+, S, A, B, C (highest -> lowest)
+  const order = ["S+++", "S++", "S+", "S", "A", "B", "C"]
+  const idx = order.indexOf((t || "").toUpperCase())
+  return idx === -1 ? 999 : idx
+}
+
+function stanceBadge(stance: Decision["stance"]) {
+  if (stance === "ENTER") return styles.badgeEnter
+  if (stance === "HOLD") return styles.badgeHold
+  return styles.badgeStandDown
 }
 
 function fmtTime(iso?: string) {
   if (!iso) return "—"
   const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return "—"
   return d.toLocaleString()
 }
 
-async function apiGET<T>(path: string): Promise<T> {
-  const res = await fetch(`${CORE}${path}`, {
+async function apiGet<T>(path: string, uid: string, tok: string) {
+  const res = await fetch(`/api/core${path}`, {
     cache: "no-store",
     headers: {
-      "X-User-Id": USER_ID,
-      "X-User-Token": USER_TOKEN,
+      "X-User-Id": uid,
+      "X-User-Token": tok,
     },
   })
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "")
-    throw new Error(`GET ${path} failed: ${res.status} ${txt}`)
+  const text = await res.text()
+  let data: any = {}
+  try {
+    data = text ? JSON.parse(text) : {}
+  } catch {
+    data = { raw: text }
   }
-  return res.json()
+  if (!res.ok) {
+    const msg = data?.detail || data?.error || `Request failed (${res.status})`
+    throw new Error(msg)
+  }
+  return data as T
 }
 
-async function apiPOST<T>(path: string, body: any): Promise<T> {
-  const res = await fetch(`${CORE}${path}`, {
+async function apiPost<T>(path: string, uid: string, tok: string, body: any) {
+  const res = await fetch(`/api/core${path}`, {
     method: "POST",
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
-      "X-User-Id": USER_ID,
-      "X-User-Token": USER_TOKEN,
+      "X-User-Id": uid,
+      "X-User-Token": tok,
     },
     body: JSON.stringify(body),
   })
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "")
-    throw new Error(`POST ${path} failed: ${res.status} ${txt}`)
+  const text = await res.text()
+  let data: any = {}
+  try {
+    data = text ? JSON.parse(text) : {}
+  } catch {
+    data = { raw: text }
   }
-  return res.json()
+  if (!res.ok) {
+    const msg = data?.detail || data?.error || `Request failed (${res.status})`
+    throw new Error(msg)
+  }
+  return data as T
 }
 
 export default function OmegaDashboardClient() {
-  const [me, setMe] = useState<Me | null>(null)
+  const UID = (process.env.NEXT_PUBLIC_USER_ID ?? "").trim()
+  const TOK = (process.env.NEXT_PUBLIC_USER_TOKEN ?? "").trim()
+
+  const [me, setMe] = useState<Me>({ user_id: "ANON", role: "READ" })
   const [controls, setControls] = useState<Controls | null>(null)
-  const [decisions, setDecisions] = useState<Decision[]>([])
-  const [count, setCount] = useState<number>(0)
+  const [rows, setRows] = useState<Decision[]>([])
+  const [systemAlert, setSystemAlert] = useState<string | null>(null)
 
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string>("")
-  const [lastSync, setLastSync] = useState<string>("")
+  const [autoRefresh, setAutoRefresh] = useState(true)
+  const [refreshEvery, setRefreshEvery] = useState(8)
 
-  // UI state
-  const [expandedId, setExpandedId] = useState<number | null>(null)
+  // 19.3 filters + paging
   const [q, setQ] = useState("")
   const [stanceFilter, setStanceFilter] = useState<"ALL" | Decision["stance"]>("ALL")
-  const [tierFilter, setTierFilter] = useState("ALL")
+  const [tierFilter, setTierFilter] = useState<"ALL" | string>("ALL")
+  const [regimeFilter, setRegimeFilter] = useState<"ALL" | string>("ALL")
+  const [sessionFilter, setSessionFilter] = useState<"ALL" | string>("ALL")
 
-  const latest = decisions?.[0]
-  const currentStance = stanceLabel(latest?.stance)
-  const currentTone = stanceTone(latest?.stance)
+  const [pageSize, setPageSize] = useState<20 | 50 | 100>(50)
+  const [page, setPage] = useState(1)
 
-  const tierOptions = useMemo(() => {
-    const set = new Set<string>()
-    decisions.forEach(d => d.tier && set.add(d.tier))
-    return ["ALL", ...Array.from(set).sort()]
-  }, [decisions])
+  // replay modal
+  const [openId, setOpenId] = useState<number | null>(null)
+  const [replay, setReplay] = useState<any | null>(null)
+  const [replayLoading, setReplayLoading] = useState(false)
 
-  const filtered = useMemo(() => {
-    return decisions.filter(d => {
-      const matchQ =
-        !q ||
-        d.symbol?.toLowerCase().includes(q.toLowerCase()) ||
-        d.decision?.toLowerCase().includes(q.toLowerCase()) ||
-        (d.regime || "").toLowerCase().includes(q.toLowerCase()) ||
-        (d.session || "").toLowerCase().includes(q.toLowerCase())
-      const matchStance = stanceFilter === "ALL" ? true : d.stance === stanceFilter
-      const matchTier = tierFilter === "ALL" ? true : d.tier === tierFilter
-      return matchQ && matchStance && matchTier
-    })
-  }, [decisions, q, stanceFilter, tierFilter])
+  const latest = rows?.[0]
 
-  async function refresh() {
-    setError("")
+  const headerStance =
+    latest?.stance === "ENTER" ? "ENTER" :
+    latest?.stance === "HOLD" ? "HOLD" :
+    "STAND DOWN"
+
+  const mode = controls?.market_mode ?? "—"
+  const kill = controls ? (controls.kill_switch ? "ARMED" : "DISARMED") : "—"
+  const allowedSymbols =
+    controls?.market_mode === "EQUITY" ? controls.equity_symbols :
+    controls?.market_mode === "CRYPTO" ? controls.crypto_symbols :
+    []
+
+  async function loadAll() {
+    setSystemAlert(null)
     try {
-      const [meResp, controlsResp, ledgerResp] = await Promise.all([
-        apiGET<Me>("/me"),
-        apiGET<Controls>("/controls"),
-        apiGET<{ count: number; decisions: Decision[] }>("/ledger/decisions"),
+      if (!UID || !TOK) {
+        setMe({ user_id: "ANON", role: "READ" })
+        setControls(null)
+        setRows([])
+        setSystemAlert("Missing NEXT_PUBLIC_USER_ID / NEXT_PUBLIC_USER_TOKEN in this deployment.")
+        return
+      }
+
+      const [meData, controlsData, decisionsData] = await Promise.all([
+        apiGet<Me>("/me", UID, TOK),
+        apiGet<Controls>("/controls", UID, TOK),
+        apiGet<DecisionsResponse>(`/ledger/decisions?limit=250`, UID, TOK),
       ])
 
-      setMe(meResp)
-      setControls(controlsResp)
-      setDecisions(ledgerResp.decisions || [])
-      setCount(ledgerResp.count || 0)
-      setLastSync(new Date().toLocaleTimeString())
+      setMe(meData)
+      setControls(controlsData)
+      setRows(decisionsData.decisions || [])
     } catch (e: any) {
-      setError(e?.message || "Unknown error")
-    } finally {
-      setLoading(false)
+      setSystemAlert(e?.message || "Failed to fetch")
     }
   }
 
   useEffect(() => {
-    if (!CORE) {
-      setLoading(false)
-      setError("Missing NEXT_PUBLIC_OMEGA_CORE_URL (or NEXT_PUBLIC_CORE_URL).")
-      return
-    }
-    refresh()
-    const t = setInterval(refresh, 8000) // auto-refresh
-    return () => clearInterval(t)
+    loadAll()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  async function toggleKillSwitch() {
-    if (!controls) return
-    setError("")
+  useEffect(() => {
+    if (!autoRefresh) return
+    const ms = Math.max(3, refreshEvery) * 1000
+    const t = setInterval(() => loadAll(), ms)
+    return () => clearInterval(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRefresh, refreshEvery])
+
+  // derive filter option lists from data
+  const tierOptions = useMemo(() => {
+    const s = new Set<string>()
+    rows.forEach(r => r.tier && s.add(String(r.tier).toUpperCase()))
+    return Array.from(s).sort((a, b) => tierRank(a) - tierRank(b))
+  }, [rows])
+
+  const regimeOptions = useMemo(() => {
+    const s = new Set<string>()
+    rows.forEach(r => r.regime && s.add(String(r.regime)))
+    return Array.from(s).sort()
+  }, [rows])
+
+  const sessionOptions = useMemo(() => {
+    const s = new Set<string>()
+    rows.forEach(r => r.session && s.add(String(r.session)))
+    return Array.from(s).sort()
+  }, [rows])
+
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase()
+    return rows.filter(r => {
+      const matchesQ =
+        !needle ||
+        r.symbol.toLowerCase().includes(needle) ||
+        (r.session || "").toLowerCase().includes(needle) ||
+        (r.regime || "").toLowerCase().includes(needle)
+
+      const matchesStance = stanceFilter === "ALL" ? true : r.stance === stanceFilter
+      const matchesTier = tierFilter === "ALL" ? true : String(r.tier).toUpperCase() === tierFilter
+      const matchesRegime = regimeFilter === "ALL" ? true : String(r.regime || "") === regimeFilter
+      const matchesSession = sessionFilter === "ALL" ? true : String(r.session || "") === sessionFilter
+
+      return matchesQ && matchesStance && matchesTier && matchesRegime && matchesSession
+    })
+  }, [rows, q, stanceFilter, tierFilter, regimeFilter, sessionFilter])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const safePage = Math.min(page, totalPages)
+
+  useEffect(() => {
+    // reset to page 1 whenever filters or page size changes
+    setPage(1)
+  }, [q, stanceFilter, tierFilter, regimeFilter, sessionFilter, pageSize])
+
+  const pageRows = useMemo(() => {
+    const start = (safePage - 1) * pageSize
+    return filtered.slice(start, start + pageSize)
+  }, [filtered, safePage, pageSize])
+
+  async function openReplay(id: number) {
+    setOpenId(id)
+    setReplay(null)
+    setReplayLoading(true)
     try {
-      const nextEnabled = !controls.kill_switch
-      await apiPOST("/controls/kill-switch", { enabled: nextEnabled })
-      await refresh()
+      const data = await apiGet<any>(`/ledger/decision/${id}`, UID, TOK)
+      setReplay(data)
     } catch (e: any) {
-      setError(e?.message || "Kill switch failed")
+      setReplay({ error: e?.message || "Replay failed" })
+    } finally {
+      setReplayLoading(false)
     }
   }
 
-  async function changeMode(mode: "EQUITY" | "CRYPTO") {
-    setError("")
+  async function copyJson(obj: any) {
     try {
-      await apiPOST("/controls/mode", { mode })
-      await refresh()
-    } catch (e: any) {
-      setError(e?.message || "Mode change failed")
+      const text = JSON.stringify(obj, null, 2)
+      await navigator.clipboard.writeText(text)
+      setSystemAlert("Copied to clipboard ✅")
+      setTimeout(() => setSystemAlert(null), 1500)
+    } catch {
+      setSystemAlert("Copy failed (browser permissions).")
     }
   }
 
-  const allowedSymbols = useMemo(() => {
-    if (!controls) return []
-    return controls.market_mode === "EQUITY" ? controls.equity_symbols : controls.crypto_symbols
-  }, [controls])
+  // ADMIN actions (real endpoints)
+  async function toggleKillSwitch(next: boolean) {
+    setSystemAlert(null)
+    try {
+      await apiPost("/controls/kill-switch", UID, TOK, { enabled: next })
+      await loadAll()
+    } catch (e: any) {
+      setSystemAlert(e?.message || "Kill switch update failed")
+    }
+  }
+
+  async function setMarketMode(next: "EQUITY" | "CRYPTO") {
+    setSystemAlert(null)
+    try {
+      await apiPost("/controls/mode", UID, TOK, { mode: next })
+      await loadAll()
+    } catch (e: any) {
+      setSystemAlert(e?.message || "Mode update failed")
+    }
+  }
 
   return (
     <div className={styles.page}>
       <div className={styles.bg} />
+
+      {/* Header / cockpit */}
       <header className={styles.header}>
-        <div className={styles.brand}>
-          <div className={styles.logo}>Ω</div>
-          <div>
-            <div className={styles.title}>Ω PRIME</div>
-            <div className={styles.subtitle}>Decision Operations Console</div>
+        <div>
+          <div className={styles.brandRow}>
+            <div className={styles.brandMark}>Ω</div>
+            <div>
+              <div className={styles.brandTitle}>Ω PRIME</div>
+              <div className={styles.brandSub}>Decision Operations Console</div>
+            </div>
           </div>
         </div>
 
-        <div className={styles.statusRow}>
-          <div className={`${styles.badge} ${styles[`tone_${currentTone}`]}`}>
-            {currentStance}
-          </div>
+        <div className={styles.headerRight}>
+          <span className={`${styles.pill} ${headerStance === "ENTER" ? styles.pillEnter : headerStance === "HOLD" ? styles.pillHold : styles.pillDown}`}>
+            {headerStance}
+          </span>
 
-          <div className={styles.badgeSoft}>
-            Mode: <strong>{controls?.market_mode ?? "—"}</strong>
-          </div>
+          <span className={styles.pill}>Mode: <b>{mode}</b></span>
+          <span className={styles.pill}>Kill Switch: <b>{kill}</b></span>
 
-          <div className={styles.badgeSoft}>
-            Kill Switch:{" "}
-            <strong className={controls?.kill_switch ? styles.dangerText : styles.goodText}>
-              {controls?.kill_switch ? "ARMED" : "DISARMED"}
-            </strong>
-          </div>
-
-          <div className={styles.badgeSoft}>
-            Sync: <strong>{lastSync || "—"}</strong>
-          </div>
+          <span className={styles.pill}>
+            Sync:{" "}
+            <button className={styles.linkBtn} onClick={loadAll} title="Refresh now">
+              refresh
+            </button>
+          </span>
         </div>
       </header>
 
       <main className={styles.main}>
-        <section className={styles.panel}>
-          <div className={styles.panelTop}>
-            <div className={styles.panelTitle}>Identity</div>
-            <div className={styles.panelMeta}>
-              {loading ? "Booting…" : `Connected to Core`}
-            </div>
-          </div>
-
-          <div className={styles.identityGrid}>
-            <div className={styles.kv}>
-              <div className={styles.k}>User</div>
-              <div className={styles.v}>{me?.user_id ?? "ANON"}</div>
-            </div>
-            <div className={styles.kv}>
-              <div className={styles.k}>Role</div>
-              <div className={styles.v}>{me?.role ?? "READ"}</div>
-            </div>
-            <div className={styles.kv}>
-              <div className={styles.k}>Allowed Symbols</div>
-              <div className={styles.vSmall}>{allowedSymbols.join(", ") || "—"}</div>
-            </div>
-            <div className={styles.kv}>
-              <div className={styles.k}>Last Decision</div>
-              <div className={styles.vSmall}>
-                {latest ? `${latest.symbol} • ${latest.decision} • ${latest.confidence}%` : "—"}
+        {/* Identity + system status */}
+        <section className={styles.gridTop}>
+          <div className={styles.card}>
+            <div className={styles.cardTitle}>Identity</div>
+            <div className={styles.kvGrid}>
+              <div className={styles.kv}>
+                <div className={styles.k}>User</div>
+                <div className={styles.v}>{me.user_id}</div>
               </div>
-            </div>
-          </div>
-
-          {error && (
-            <div className={styles.errorBox}>
-              <div className={styles.errorTitle}>System Alert</div>
-              <div className={styles.errorText}>{error}</div>
-            </div>
-          )}
-        </section>
-
-        {me?.role === "ADMIN" && (
-          <section className={`${styles.panel} ${styles.panelGlow}`}>
-            <div className={styles.panelTop}>
-              <div className={styles.panelTitle}>Admin Controls</div>
-              <div className={styles.panelMeta}>Live safety + mode governance</div>
-            </div>
-
-            <div className={styles.controlsGrid}>
-              <button
-                className={`${styles.btn} ${controls?.kill_switch ? styles.btnDanger : styles.btnGood}`}
-                onClick={toggleKillSwitch}
-              >
-                {controls?.kill_switch ? "Disable Kill Switch" : "Enable Kill Switch"}
-              </button>
-
-              <div className={styles.selectWrap}>
-                <label className={styles.selectLabel}>Market Mode</label>
-                <select
-                  className={styles.select}
-                  value={controls?.market_mode ?? "EQUITY"}
-                  onChange={(e) => changeMode(e.target.value as any)}
-                >
-                  <option value="EQUITY">EQUITY</option>
-                  <option value="CRYPTO">CRYPTO</option>
-                </select>
+              <div className={styles.kv}>
+                <div className={styles.k}>Role</div>
+                <div className={styles.v}><span className={styles.role}>{me.role}</span></div>
               </div>
-
-              <div className={styles.note}>
-                <div className={styles.noteTitle}>Safety Rules</div>
-                <div className={styles.noteText}>
-                  Execution only occurs when Kill Switch is <strong>DISARMED</strong> and stance is <strong>ENTER</strong>.
+              <div className={styles.kv}>
+                <div className={styles.k}>Allowed Symbols</div>
+                <div className={styles.vSmall}>
+                  {allowedSymbols.length ? allowedSymbols.join(", ") : "—"}
+                </div>
+              </div>
+              <div className={styles.kv}>
+                <div className={styles.k}>Last Decision</div>
+                <div className={styles.vSmall}>
+                  {latest ? `${latest.symbol} • ${latest.decision} • ${latest.confidence}%` : "—"}
                 </div>
               </div>
             </div>
-          </section>
-        )}
-
-        <section className={styles.panel}>
-          <div className={styles.panelTop}>
-            <div className={styles.panelTitle}>Telemetry</div>
-            <div className={styles.panelMeta}>Decisions: {count}</div>
           </div>
 
-          <div className={styles.filters}>
+          <div className={styles.card}>
+            <div className={styles.cardTitle}>System Alert</div>
+            <div className={styles.alertBox}>
+              {systemAlert ? systemAlert : "Connected to Core"}
+            </div>
+
+            <div className={styles.controlsRow}>
+              <label className={styles.toggleRow}>
+                <input
+                  type="checkbox"
+                  checked={autoRefresh}
+                  onChange={(e) => setAutoRefresh(e.target.checked)}
+                />
+                <span>Auto-refresh</span>
+              </label>
+
+              <div className={styles.inline}>
+                <span className={styles.muted}>Every</span>
+                <select
+                  className={styles.select}
+                  value={refreshEvery}
+                  onChange={(e) => setRefreshEvery(parseInt(e.target.value, 10))}
+                >
+                  <option value={5}>5s</option>
+                  <option value={8}>8s</option>
+                  <option value={10}>10s</option>
+                  <option value={15}>15s</option>
+                </select>
+              </div>
+            </div>
+
+            {/* ADMIN controls */}
+            {me.role === "ADMIN" && controls && (
+              <div className={styles.adminPanel}>
+                <div className={styles.adminTitle}>Admin Controls</div>
+
+                <div className={styles.adminControls}>
+                  <button
+                    className={styles.btn}
+                    onClick={() => toggleKillSwitch(!controls.kill_switch)}
+                    title="Toggle kill switch (server authority)"
+                  >
+                    Toggle Kill Switch
+                  </button>
+
+                  <select
+                    className={styles.select}
+                    value={controls.market_mode}
+                    onChange={(e) => setMarketMode(e.target.value as any)}
+                    title="Set market mode (server authority)"
+                  >
+                    <option value="EQUITY">EQUITY</option>
+                    <option value="CRYPTO">CRYPTO</option>
+                  </select>
+
+                  <button
+                    className={styles.btnGhost}
+                    onClick={() => copyJson({ env: { UID: !!UID, TOK: !!TOK }, me, controls })}
+                    title="Copy diagnostics"
+                  >
+                    Copy Diagnostics
+                  </button>
+                </div>
+
+                <div className={styles.adminHint}>
+                  These buttons hit real Core endpoints. Governance lives here.
+                </div>
+              </div>
+            )}
+
+            {/* CONFIRM guidance */}
+            {me.role === "CONFIRM" && (
+              <div className={styles.confirmPanel}>
+                <div className={styles.confirmTitle}>Confirm Console</div>
+                <div className={styles.confirmHint}>
+                  You can review signal quality + reasoning. Execution authority remains ADMIN-only.
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Telemetry / filters / table */}
+        <section className={styles.card}>
+          <div className={styles.cardTitle}>Telemetry</div>
+
+          <div className={styles.filterRow}>
             <input
               className={styles.search}
-              placeholder="Search symbol / session / regime…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
+              placeholder="Search symbol / session / regime..."
             />
 
-            <select
-              className={styles.filterSelect}
-              value={stanceFilter}
-              onChange={(e) => setStanceFilter(e.target.value as any)}
-            >
+            <select className={styles.select} value={stanceFilter} onChange={(e) => setStanceFilter(e.target.value as any)}>
               <option value="ALL">All stances</option>
               <option value="ENTER">ENTER</option>
               <option value="HOLD">HOLD</option>
@@ -321,14 +443,25 @@ export default function OmegaDashboardClient() {
               <option value="DENIED">DENIED</option>
             </select>
 
-            <select
-              className={styles.filterSelect}
-              value={tierFilter}
-              onChange={(e) => setTierFilter(e.target.value)}
-            >
-              {tierOptions.map(t => (
-                <option key={t} value={t}>{t === "ALL" ? "All tiers" : `Tier ${t}`}</option>
-              ))}
+            <select className={styles.select} value={tierFilter} onChange={(e) => setTierFilter(e.target.value as any)}>
+              <option value="ALL">All tiers</option>
+              {tierOptions.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+
+            <select className={styles.select} value={regimeFilter} onChange={(e) => setRegimeFilter(e.target.value as any)}>
+              <option value="ALL">All regimes</option>
+              {regimeOptions.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+
+            <select className={styles.select} value={sessionFilter} onChange={(e) => setSessionFilter(e.target.value as any)}>
+              <option value="ALL">All sessions</option>
+              {sessionOptions.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+
+            <select className={styles.select} value={pageSize} onChange={(e) => setPageSize(parseInt(e.target.value, 10) as any)}>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
             </select>
           </div>
 
@@ -346,86 +479,27 @@ export default function OmegaDashboardClient() {
                   <th>Time</th>
                 </tr>
               </thead>
+
               <tbody>
-                {filtered.map((d) => {
-                  const tone = stanceTone(d.stance)
-                  const isOpen = expandedId === d.id
-                  return (
-                    <React.Fragment key={d.id}>
-                      <tr
-                        className={styles.row}
-                        onClick={() => setExpandedId(isOpen ? null : d.id)}
-                      >
-                        <td className={styles.symbolCell}>{d.symbol}</td>
-                        <td>
-                          <span className={`${styles.pill} ${styles[`tone_${tone}`]}`}>
-                            {stanceLabel(d.stance)}
-                          </span>
-                        </td>
-                        <td>{d.decision}</td>
-                        <td>
-                          <span className={styles.tierBadge}>Ω {d.tier}</span>
-                        </td>
-                        <td>
-                          <div className={styles.confWrap}>
-                            <div className={styles.confBar}>
-                              <div
-                                className={styles.confFill}
-                                style={{ width: `${Math.max(0, Math.min(100, d.confidence || 0))}%` }}
-                              />
-                            </div>
-                            <div className={styles.confText}>{d.confidence}%</div>
-                          </div>
-                        </td>
-                        <td>{d.regime || "—"}</td>
-                        <td>{d.session || d.payload?.session || "—"}</td>
-                        <td className={styles.timeCell}>{fmtTime(d.created_at)}</td>
-                      </tr>
+                {pageRows.map((d) => (
+                  <tr key={d.id} className={styles.row} onClick={() => openReplay(d.id)} title="Click to replay + forensic detail">
+                    <td><span className={styles.symbol}>{d.symbol}</span></td>
+                    <td><span className={`${styles.badge} ${stanceBadge(d.stance)}`}>{d.stance}</span></td>
+                    <td className={styles.mono}>{d.decision}</td>
+                    <td><span className={styles.tier}>{String(d.tier).toUpperCase()}</span></td>
+                    <td>
+                      <div className={styles.confWrap}>
+                        <div className={styles.confBar} style={{ width: `${Math.max(0, Math.min(100, d.confidence))}%` }} />
+                        <div className={styles.confText}>{d.confidence}%</div>
+                      </div>
+                    </td>
+                    <td>{d.regime ?? "—"}</td>
+                    <td>{d.session ?? "—"}</td>
+                    <td className={styles.muted}>{fmtTime(d.created_at)}</td>
+                  </tr>
+                ))}
 
-                      {isOpen && (
-                        <tr className={styles.expandRow}>
-                          <td colSpan={8}>
-                            <div className={styles.expandCard}>
-                              <div className={styles.expandTitle}>Decision Detail</div>
-
-                              <div className={styles.expandGrid}>
-                                <div className={styles.kv}>
-                                  <div className={styles.k}>HTF / LTF</div>
-                                  <div className={styles.vSmall}>
-                                    {d.tf_htf || "—"} / {d.tf_ltf || "—"}
-                                  </div>
-                                </div>
-
-                                <div className={styles.kv}>
-                                  <div className={styles.k}>Reason Codes</div>
-                                  <div className={styles.vSmall}>
-                                    {(d.reason_codes || []).join(", ") || "—"}
-                                  </div>
-                                </div>
-
-                                <div className={styles.kv}>
-                                  <div className={styles.k}>Reasons</div>
-                                  <div className={styles.vSmall}>
-                                    {(d.reasons_text || []).join(" • ") || "—"}
-                                  </div>
-                                </div>
-
-                                <div className={styles.kv}>
-                                  <div className={styles.k}>Payload Snapshot</div>
-                                  <pre className={styles.pre}>
-                                    {JSON.stringify(d.payload ?? {}, null, 2)}
-                                  </pre>
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  )
-                })}
-
-                {!filtered.length && !loading && (
+                {!pageRows.length && (
                   <tr>
                     <td colSpan={8} className={styles.empty}>
                       No results. Adjust filters or wait for telemetry.
@@ -436,15 +510,58 @@ export default function OmegaDashboardClient() {
             </table>
           </div>
 
+          <div className={styles.pager}>
+            <div className={styles.muted}>
+              Showing <b>{pageRows.length}</b> / <b>{filtered.length}</b>
+            </div>
+
+            <div className={styles.pagerBtns}>
+              <button className={styles.btnGhost} disabled={safePage <= 1} onClick={() => setPage(1)}>First</button>
+              <button className={styles.btnGhost} disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}>Prev</button>
+              <span className={styles.pill}>Page <b>{safePage}</b> / <b>{totalPages}</b></span>
+              <button className={styles.btnGhost} disabled={safePage >= totalPages} onClick={() => setPage(safePage + 1)}>Next</button>
+              <button className={styles.btnGhost} disabled={safePage >= totalPages} onClick={() => setPage(totalPages)}>Last</button>
+            </div>
+          </div>
+
           <div className={styles.footerHint}>
-            Click a row to expand forensic detail. Auto-refresh runs every 8 seconds.
+            Click a row to expand forensic replay. Auto-refresh runs every {refreshEvery}s.
           </div>
         </section>
       </main>
 
-      <footer className={styles.footer}>
-        <span>Ω PRIME • Celestial-grade governance • Built for real-world ops</span>
-      </footer>
+      {/* Replay Modal */}
+      {openId !== null && (
+        <div className={styles.modalBackdrop} onClick={() => setOpenId(null)}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <div>
+                <div className={styles.modalTitle}>Decision Replay</div>
+                <div className={styles.muted}>ID: {openId}</div>
+              </div>
+
+              <div className={styles.modalActions}>
+                <button className={styles.btnGhost} onClick={() => setOpenId(null)}>Close</button>
+                <button className={styles.btn} onClick={() => copyJson(replay)}>Copy Payload</button>
+              </div>
+            </div>
+
+            <div className={styles.modalBody}>
+              {replayLoading && <div className={styles.muted}>Loading replay…</div>}
+
+              {!replayLoading && replay && replay.error && (
+                <div className={styles.alertBox}>{replay.error}</div>
+              )}
+
+              {!replayLoading && replay && !replay.error && (
+                <pre className={styles.pre}>
+{JSON.stringify(replay, null, 2)}
+                </pre>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
