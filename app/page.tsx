@@ -1,3 +1,4 @@
+"use client"
 import React from "react"
 
 const CORE = process.env.NEXT_PUBLIC_OMEGA_CORE_URL!
