@@ -1,19 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { coreGet } from "./core";
 
-type Me = { user_id: string; role: "ADMIN" | "CONFIRM" | "READ" };
+export type Me = {
+  id: string;
+  role: "ADMIN" | "CONFIRM" | "READ";
+  allowedSymbols: string[];
+};
 
 export function useMe() {
   const [me, setMe] = useState<Me | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    coreGet<Me>("/me")
-      .then(setMe)
-      .catch((e) => setErr(String(e?.message || e)));
+    fetch("/api/core/me", { cache: "no-store" })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data) setMe(data);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, []);
 
-  return { me, err, isAdmin: me?.role === "ADMIN" };
+  return { me, loading };
 }
