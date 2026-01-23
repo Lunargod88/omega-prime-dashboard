@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import styles from "./OmegaStyles.module.css";
-import { useMe } from "@/src/lib/useMe";
+import { useMe } from "../../src/lib/useMe";
+
 
 type Decision = {
   id: number;
