@@ -3,10 +3,13 @@
 import { useEffect, useState } from "react";
 
 export type Me = {
-  user_id: string;
-  role: "ADMIN" | "CONFIRM" | "READ";
-  market_mode?: "EQUITY" | "CRYPTO";
+  user_id?: string;
+  role?: "ADMIN" | "CONFIRM" | "READ" | string;
+  market_mode?: string;
   kill_switch?: boolean;
+
+  // optional: keep compatibility if UI shows these
+  allowedSymbols?: string[];
 };
 
 export function useMe() {
@@ -15,8 +18,8 @@ export function useMe() {
 
   useEffect(() => {
     fetch("/api/core/me", { cache: "no-store" })
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
         if (data) setMe(data);
         setLoading(false);
       })
