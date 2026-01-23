@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 
 export type Me = {
-  id: string;
+  user_id: string;
   role: "ADMIN" | "CONFIRM" | "READ";
-  allowedSymbols: string[];
+  market_mode?: "EQUITY" | "CRYPTO";
+  kill_switch?: boolean;
 };
 
 export function useMe() {
