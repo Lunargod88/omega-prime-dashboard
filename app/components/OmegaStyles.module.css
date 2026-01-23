@@ -23,6 +23,8 @@
   padding: 22px;
   position: relative;
   z-index: 2;
+  gap: 14px;
+  flex-wrap: wrap;
 }
 
 .brand {
@@ -39,6 +41,7 @@
   place-items: center;
   font-weight: 900;
   background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
 }
 
 .title {
@@ -54,6 +57,8 @@
 .statusRow {
   display: flex;
   gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .badge {
@@ -62,6 +67,29 @@
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.14);
   font-weight: 800;
+  white-space: nowrap;
+}
+
+.badgeBtn {
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.14);
+  font-weight: 800;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.badgeBtnInner {
+  display: inline-block;
+  padding: 2px 8px;
+  margin-left: 6px;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid rgba(255,255,255,0.12);
+  font-size: 12px;
+  opacity: 0.9;
 }
 
 .tone_warn {
@@ -92,10 +120,17 @@
   display: flex;
   justify-content: space-between;
   margin-bottom: 12px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .panelTitle {
   font-weight: 900;
+}
+
+.panelMeta {
+  font-size: 12px;
+  opacity: 0.7;
 }
 
 .identityGrid {
@@ -108,6 +143,7 @@
   padding: 12px;
   border-radius: 14px;
   background: rgba(0,0,0,0.22);
+  border: 1px solid rgba(255,255,255,0.08);
 }
 
 .k {
@@ -121,12 +157,167 @@
 
 .vSmall {
   font-size: 12px;
+  opacity: 0.9;
+}
+
+.errorBox {
+  margin: 10px 0 14px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,80,80,0.35);
+  background: rgba(120, 20, 30, 0.22);
+}
+
+.errorTitle {
+  font-weight: 900;
+  margin-bottom: 6px;
+}
+
+.errorText {
+  font-size: 12px;
+  opacity: 0.9;
+  white-space: pre-wrap;
+}
+
+.controlGrid {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.checkboxRow {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  font-weight: 700;
+  opacity: 0.95;
+}
+
+.everyRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0,0,0,0.22);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+
+.everyLabel {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.sectionTitle {
+  margin-top: 12px;
+  font-weight: 900;
+}
+
+.adminGrid {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.btn {
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(118,70,255,0.28);
+  background: rgba(118,70,255,0.12);
+  color: rgba(255,255,255,0.92);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.btnGhost {
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.92);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.btnTiny {
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.92);
+  font-weight: 900;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.modeRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.22);
+}
+
+.modeLabel {
+  font-weight: 900;
+  opacity: 0.95;
+}
+
+.note {
+  margin-top: 10px;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr 100px;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.search {
+  width: 100%;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.22);
+  color: rgba(255,255,255,0.92);
+  outline: none;
+}
+
+.select {
+  width: 100%;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.22);
+  color: rgba(255,255,255,0.92);
+  outline: none;
+}
+
+.inputMini {
+  width: 100%;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.22);
+  color: rgba(255,255,255,0.92);
+  outline: none;
+  text-align: center;
+  font-weight: 900;
 }
 
 .tableWrap {
   overflow: auto;
   border-radius: 14px;
   background: rgba(0,0,0,0.22);
+  border: 1px solid rgba(255,255,255,0.10);
 }
 
 .table {
@@ -138,10 +329,12 @@
 .table td {
   padding: 12px;
   font-size: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 
 .row:hover {
   background: rgba(255,255,255,0.04);
+  cursor: pointer;
 }
 
 .symbolCell {
@@ -152,6 +345,8 @@
   padding: 6px 12px;
   border-radius: 999px;
   background: rgba(118,70,255,0.18);
+  border: 1px solid rgba(118,70,255,0.24);
+  font-weight: 900;
 }
 
 .confWrap {
@@ -165,6 +360,7 @@
   height: 10px;
   border-radius: 999px;
   background: rgba(255,255,255,0.12);
+  overflow: hidden;
 }
 
 .confFill {
@@ -172,8 +368,40 @@
   background: linear-gradient(90deg,#00ffaa,#7646ff,#ff4081);
 }
 
+.confText {
+  font-weight: 900;
+  min-width: 44px;
+  text-align: right;
+}
+
+.expandRow td {
+  border-bottom: none;
+}
+
 .expandCard {
   padding: 14px;
+  border-radius: 14px;
+  background: rgba(0,0,0,0.18);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+
+.expandTitle {
+  font-weight: 900;
+  margin-bottom: 10px;
+}
+
+.replayGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.replayKV {
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.22);
 }
 
 .pre {
@@ -181,11 +409,25 @@
   background: rgba(0,0,0,0.35);
   padding: 12px;
   border-radius: 12px;
+  overflow: auto;
 }
 
 .empty {
   text-align: center;
   opacity: 0.6;
+  padding: 18px;
+}
+
+.showing {
+  margin-top: 10px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.bottomHint {
+  margin-top: 6px;
+  font-size: 12px;
+  opacity: 0.7;
 }
 
 .footer {
@@ -193,4 +435,17 @@
   padding: 22px;
   opacity: 0.6;
   font-size: 12px;
+}
+
+/* responsive */
+@media (max-width: 1100px) {
+  .filters {
+    grid-template-columns: 1fr 1fr;
+  }
+  .identityGrid {
+    grid-template-columns: 1fr;
+  }
+  .replayGrid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
