@@ -107,8 +107,8 @@ export default function OmegaDashboardClient() {
     setBusy(true);
     setErr(null);
     try {
-      // You can change this endpoint to match your CORE API:
       // Expected: { items: [...], total?, next_cursor? }
+      // NOTE: Runtime endpoint mapping depends on your core proxy. This compiles regardless.
       const data: DecisionsResponse = await coreGET(`/decisions${query}`);
       setItems(Array.isArray(data.items) ? data.items : []);
       setTotal(typeof data.total === "number" ? data.total : null);
@@ -136,7 +136,6 @@ export default function OmegaDashboardClient() {
     setBusy(true);
     setErr(null);
     try {
-      // You can change this endpoint to match your CORE API:
       // POST /decisions/{id}/action { action: "CONFIRM" | "REJECT" | "ACK" | "FLAG_RISK" }
       await corePOST(`/decisions/${encodeURIComponent(decisionId)}/action`, { action });
       await load();
@@ -159,14 +158,14 @@ export default function OmegaDashboardClient() {
           <div className={styles.title}>Ω PRIME — Decision Operations Console</div>
           <div className={styles.sub}>
             Identity:{" "}
-            {meLoading ? "loading…" : meError ? "unknown" : me?.label || me?.name || "unknown"}{" "}
+            {meLoading ? "loading…" : meError ? "unknown" : me?.label || me?.name || me?.user_id || "unknown"}{" "}
             <span className={styles.dim}>({role || "NO_ROLE"})</span>
           </div>
         </div>
 
         {/* Top status strip placeholder (Mode / Kill / Sync) */}
         <div className={styles.strip}>
-          <span className={styles.badge}>Mode: {me?.mode || "—"}</span>
+          <span className={styles.badge}>Mode: {me?.mode || me?.market_mode || "—"}</span>
           <span className={styles.badge}>Kill: {me?.kill_switch ? "ON" : "OFF"}</span>
           <span className={styles.badge}>Sync: {me?.sync || "—"}</span>
         </div>
@@ -348,9 +347,7 @@ export default function OmegaDashboardClient() {
               <button onClick={() => setOpenDecision(null)}>Close</button>
             </div>
 
-            <pre className={styles.pre}>
-{JSON.stringify(openDecision, null, 2)}
-            </pre>
+            <pre className={styles.pre}>{JSON.stringify(openDecision, null, 2)}</pre>
           </div>
         </div>
       )}
