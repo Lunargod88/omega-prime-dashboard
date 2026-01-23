@@ -15,7 +15,6 @@ async function proxy(req: NextRequest) {
     url.search;
 
   const headers = new Headers(req.headers);
-
   headers.set("x-user-id", USER_ID);
   headers.set("x-user-token", USER_TOKEN);
   headers.set("authorization", `Bearer ${USER_TOKEN}`);
