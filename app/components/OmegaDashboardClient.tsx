@@ -29,6 +29,13 @@ type SystemStatus = {
   market_mode?: "EQUITY" | "CRYPTO";
 };
 
+type ControlsResponse = {
+  kill_switch: boolean;
+  market_mode: "EQUITY" | "CRYPTO";
+  equity_symbols?: string[];
+  crypto_symbols?: string[];
+};
+
 function safeUpper(x?: string) {
   return (x || "").toUpperCase();
 }
@@ -44,6 +51,9 @@ export default function OmegaDashboardClient() {
   });
   const [sysErr, setSysErr] = useState<string | null>(null);
   const [sysLoading, setSysLoading] = useState(false);
+
+  // --- Controls payload (for allowed symbols display)
+  const [controls, setControls] = useState<ControlsResponse | null>(null);
 
   // --- Decisions
   const [items, setItems] = useState<Decision[]>([]);
@@ -67,19 +77,32 @@ export default function OmegaDashboardClient() {
   const canConfirm = role === "CONFIRM" || canAdmin;
 
   const userId = me?.user_id || "—";
-  const allowedSymbols = (me?.allowedSymbols || []).join(", ");
 
   const derivedStanceBadge = safeUpper(items[0]?.stance) || "STAND DOWN";
+
+  // Allowed symbols: source of truth = /controls because env-backed lists live there.
+  const allowedSymbols = useMemo(() => {
+    const mode = sys.market_mode || controls?.market_mode || "EQUITY";
+    const list =
+      mode === "CRYPTO" ? controls?.crypto_symbols || [] : controls?.equity_symbols || [];
+    return list.length ? list.join(", ") : (me?.allowedSymbols || []).join(", ");
+  }, [controls, me?.allowedSymbols, sys.market_mode]);
 
   async function loadSystem() {
     try {
       setSysErr(null);
       setSysLoading(true);
-      const res = await fetch("/api/core/system/status", { cache: "no-store" });
+
+      // CORE endpoint you already have:
+      // GET /controls -> { kill_switch, market_mode, equity_symbols, crypto_symbols }
+      const res = await fetch("/api/core/controls", { cache: "no-store" });
       if (!res.ok) throw new Error(await res.text());
-      const data = (await res.json()) as SystemStatus;
+      const data = (await res.json()) as ControlsResponse;
+
+      setControls(data);
+
       setSys({
-        execution_enabled: !!data.execution_enabled,
+        execution_enabled: !data.kill_switch,
         kill_switch: !!data.kill_switch,
         market_mode: (data.market_mode || "EQUITY") as any,
       });
@@ -138,10 +161,16 @@ export default function OmegaDashboardClient() {
   async function toggleKillSwitch() {
     try {
       setSysErr(null);
-      const res = await fetch("/api/core/system/kill-switch/toggle", {
+
+      // CORE endpoint:
+      // POST /controls/kill-switch  body { enabled: boolean }
+      const res = await fetch("/api/core/controls/kill-switch", {
         method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ enabled: !sys.kill_switch }),
         cache: "no-store",
       });
+
       if (!res.ok) throw new Error(await res.text());
       await loadSystem();
     } catch (e: any) {
@@ -152,12 +181,16 @@ export default function OmegaDashboardClient() {
   async function setMode(nextMode: "EQUITY" | "CRYPTO") {
     try {
       setSysErr(null);
-      const res = await fetch("/api/core/system/mode", {
+
+      // CORE endpoint:
+      // POST /controls/mode  body { mode: "EQUITY" | "CRYPTO" }
+      const res = await fetch("/api/core/controls/mode", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ market_mode: nextMode }),
+        body: JSON.stringify({ mode: nextMode }),
         cache: "no-store",
       });
+
       if (!res.ok) throw new Error(await res.text());
       await loadSystem();
     } catch (e: any) {
@@ -184,7 +217,7 @@ export default function OmegaDashboardClient() {
     const diag = {
       user: userId,
       role,
-      allowedSymbols: me?.allowedSymbols || [],
+      allowedSymbols: allowedSymbols ? allowedSymbols.split(",").map((s) => s.trim()) : [],
       system: sys,
       ui: { autoRefresh, everySec, q, stance, tier, regime, session, limit },
       lastDecision: items[0] || null,
@@ -314,7 +347,9 @@ export default function OmegaDashboardClient() {
                   <div className={styles.modeLabel}>{modeLabel}</div>
                   <button
                     className={styles.btnGhost}
-                    onClick={() => setMode(modeLabel === "EQUITY" ? "CRYPTO" : "EQUITY")}
+                    onClick={() =>
+                      setMode(modeLabel === "EQUITY" ? "CRYPTO" : "EQUITY")
+                    }
                   >
                     Switch Mode
                   </button>
@@ -333,7 +368,8 @@ export default function OmegaDashboardClient() {
             <>
               <div className={styles.sectionTitle}>Confirm Console</div>
               <div className={styles.note}>
-                You can review signal quality + reasoning. Execution authority remains ADMIN-only.
+                You can review signal quality + reasoning. Execution authority remains
+                ADMIN-only.
               </div>
             </>
           ) : null}
@@ -356,7 +392,11 @@ export default function OmegaDashboardClient() {
               onChange={(e) => setQ(e.target.value)}
             />
 
-            <select className={styles.select} value={stance} onChange={(e) => setStance(e.target.value)}>
+            <select
+              className={styles.select}
+              value={stance}
+              onChange={(e) => setStance(e.target.value)}
+            >
               <option value="ALL">All stances</option>
               <option value="STAND_DOWN">STAND_DOWN</option>
               <option value="PRIME">PRIME</option>
@@ -369,7 +409,11 @@ export default function OmegaDashboardClient() {
               <option value="C">C</option>
             </select>
 
-            <select className={styles.select} value={tier} onChange={(e) => setTier(e.target.value)}>
+            <select
+              className={styles.select}
+              value={tier}
+              onChange={(e) => setTier(e.target.value)}
+            >
               <option value="ALL">All tiers</option>
               <option value="PRIME">PRIME</option>
               <option value="S+++">S+++</option>
@@ -381,7 +425,11 @@ export default function OmegaDashboardClient() {
               <option value="C">C</option>
             </select>
 
-            <select className={styles.select} value={regime} onChange={(e) => setRegime(e.target.value)}>
+            <select
+              className={styles.select}
+              value={regime}
+              onChange={(e) => setRegime(e.target.value)}
+            >
               <option value="ALL">All regimes</option>
               <option value="BULL">BULL</option>
               <option value="BEAR">BEAR</option>
@@ -390,7 +438,11 @@ export default function OmegaDashboardClient() {
               <option value="VOLATILE">VOLATILE</option>
             </select>
 
-            <select className={styles.select} value={session} onChange={(e) => setSession(e.target.value)}>
+            <select
+              className={styles.select}
+              value={session}
+              onChange={(e) => setSession(e.target.value)}
+            >
               <option value="ALL">All sessions</option>
               <option value="ASIA">ASIA</option>
               <option value="LONDON">LONDON</option>
@@ -425,7 +477,9 @@ export default function OmegaDashboardClient() {
                   <React.Fragment key={d.id}>
                     <tr
                       className={styles.row}
-                      onClick={() => setExpanded(expanded === d.id ? null : d.id)}
+                      onClick={() =>
+                        setExpanded(expanded === d.id ? null : d.id)
+                      }
                     >
                       <td className={styles.symbolCell}>{d.symbol}</td>
                       <td>{d.stance || "—"}</td>
@@ -442,7 +496,9 @@ export default function OmegaDashboardClient() {
                             />
                           </div>
                           <span className={styles.confText}>
-                            {typeof d.confidence === "number" ? `${d.confidence}%` : "—"}
+                            {typeof d.confidence === "number"
+                              ? `${d.confidence}%`
+                              : "—"}
                           </span>
                         </div>
                       </td>
@@ -467,7 +523,9 @@ export default function OmegaDashboardClient() {
                       <tr className={styles.expandRow}>
                         <td colSpan={canConfirm ? 7 : 6}>
                           <div className={styles.expandCard}>
-                            <div className={styles.expandTitle}>Forensic Replay</div>
+                            <div className={styles.expandTitle}>
+                              Forensic Replay
+                            </div>
 
                             <div className={styles.replayGrid}>
                               <div className={styles.replayKV}>
@@ -514,7 +572,8 @@ export default function OmegaDashboardClient() {
           </div>
 
           <div className={styles.bottomHint}>
-            Click a row to expand forensic replay. Auto-refresh runs every {Math.max(2, Number(everySec) || 8)}s.
+            Click a row to expand forensic replay. Auto-refresh runs every{" "}
+            {Math.max(2, Number(everySec) || 8)}s.
           </div>
         </section>
       </main>
