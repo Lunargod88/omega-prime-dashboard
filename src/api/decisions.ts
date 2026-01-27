@@ -11,15 +11,19 @@ export type DecisionRow = {
   authority: string;
   confidence?: number | null;
   regime?: string | null;
+
+  // PHASE 3 — PRICE CONTEXT
+  entry_price?: number | null;
+  stop_price?: number | null;
+  min_target?: number | null;
+  max_target?: number | null;
+  current_price?: number | null;
 };
 
 const CORE_BASE =
-  process.env.NEXT_PUBLIC_CORE_BASE_URL ||
-  ""; // if you're proxying via /api/core, leave this empty
+  process.env.NEXT_PUBLIC_CORE_BASE_URL || "";
 
 function buildUrl(path: string) {
-  // If you already proxy Core through Next route.ts, you likely call `/api/core/...`
-  // Example: buildUrl("/api/core/api/decisions")
   return path;
 }
 
