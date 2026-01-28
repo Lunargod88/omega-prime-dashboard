@@ -485,33 +485,32 @@ export default function OmegaDashboardClient() {
 </select>
 
             <select
-              className={styles.select}
-              value={tier}
-              onChange={(e) => setTier(e.target.value)}
-            >
-              <option value="ALL">All tiers</option>
-              <option value="PRIME">PRIME</option>
-              <option value="S+++">S+++</option>
-              <option value="S++">S++</option>
-              <option value="S+">S+</option>
-              <option value="S">S</option>
-              <option value="A">A</option>
-              <option value="B">B</option>
-              <option value="C">C</option>
-            </select>
+  className={styles.select}
+  value={tier}
+  onChange={(e) => setTier(e.target.value)}
+>
+  <option value="ALL">All tiers</option>
+  <option value="S+++">S+++</option>
+  <option value="S++">S++</option>
+  <option value="S+">S+</option>
+  <option value="S">S</option>
+  <option value="A">A</option>
+  <option value="B">B</option>
+  <option value="C">C</option>
+</select>
+
 
             <select
-              className={styles.select}
-              value={regime}
-              onChange={(e) => setRegime(e.target.value)}
-            >
-              <option value="ALL">All regimes</option>
-              <option value="BULL">BULL</option>
-              <option value="BEAR">BEAR</option>
-              <option value="RANGE">RANGE</option>
-              <option value="CHOP">CHOP</option>
-              <option value="VOLATILE">VOLATILE</option>
-            </select>
+  className={styles.select}
+  value={regime}
+  onChange={(e) => setRegime(e.target.value)}
+>
+  <option value="ALL">All regimes</option>
+  <option value="COMPRESSION">COMPRESSION</option>
+  <option value="EXPANSION">EXPANSION</option>
+  <option value="NEUTRAL">NEUTRAL</option>
+</select>
+
 
             <select
               className={styles.select}
