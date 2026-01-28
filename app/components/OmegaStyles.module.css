@@ -449,3 +449,12 @@
     grid-template-columns: 1fr 1fr;
   }
 }
+.authorityPrime {
+  color: #ff3b3b;
+  font-weight: 700;
+  text-shadow: 0 0 8px rgba(255, 59, 59, 0.6);
+}
+
+.authorityNormal {
+  color: #aaa;
+}
