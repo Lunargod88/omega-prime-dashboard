@@ -18,6 +18,14 @@ type Decision = {
   rr_stop?: number;
   rr_min?: number;
   rr_max?: number;
+
+  // PHASE 3 — BLOCK 5 (Price + Targets)
+  entry_price?: number;
+  stop_price?: number;
+  min_target?: number;
+  max_target?: number;
+  current_price?: number;
+
   status?: string;
   payload?: any;
   created_at?: string;
@@ -55,26 +63,26 @@ export default function OmegaDashboardClient() {
   // --- Controls payload (for allowed symbols display)
   const [controls, setControls] = useState<ControlsResponse | null>(null);
 
-// --- Decisions
-const [items, setItems] = useState<Decision[]>([]);
-const [expanded, setExpanded] = useState<string | null>(null);
-const [error, setError] = useState<string | null>(null);
+  // --- Decisions
+  const [items, setItems] = useState<Decision[]>([]);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-// --- Negotiation layer
-const [negotiation, setNegotiation] = useState<any | null>(null);
-const [negErr, setNegErr] = useState<string | null>(null);
+  // --- Negotiation layer
+  const [negotiation, setNegotiation] = useState<any | null>(null);
+  const [negErr, setNegErr] = useState<string | null>(null);
 
-async function loadNegotiation() {
-  try {
-    setNegErr(null);
-    const res = await fetch("/api/core/negotiation/status", { cache: "no-store" });
-    if (!res.ok) throw new Error(await res.text());
-    const data = await res.json();
-    setNegotiation(data);
-  } catch (e: any) {
-    setNegErr(e?.message || "Negotiation failed");
+  async function loadNegotiation() {
+    try {
+      setNegErr(null);
+      const res = await fetch("/api/core/negotiation/status", { cache: "no-store" });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setNegotiation(data);
+    } catch (e: any) {
+      setNegErr(e?.message || "Negotiation failed");
+    }
   }
-}
 
   // --- UI controls (matches your screenshots)
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -154,8 +162,8 @@ async function loadNegotiation() {
   }
 
   async function syncNow() {
-  await Promise.all([loadSystem(), loadDecisions(), loadNegotiation()]);
-}
+    await Promise.all([loadSystem(), loadDecisions(), loadNegotiation()]);
+  }
 
   // Auto refresh loop
   useEffect(() => {
@@ -229,19 +237,19 @@ async function loadNegotiation() {
     }
   }
 
-async function confirmNegotiation(decisionId: number) {
-  try {
-    const res = await fetch(`/api/core/negotiation/confirm/${decisionId}`, {
-      method: "POST",
-      cache: "no-store",
-    });
-    if (!res.ok) throw new Error(await res.text());
-    await syncNow();
-  } catch (e: any) {
-    setNegErr(e?.message || "Negotiation confirm failed");
+  async function confirmNegotiation(decisionId: number) {
+    try {
+      const res = await fetch(`/api/core/negotiation/confirm/${decisionId}`, {
+        method: "POST",
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      await syncNow();
+    } catch (e: any) {
+      setNegErr(e?.message || "Negotiation confirm failed");
+    }
   }
-}
-  
+
   function copyDiagnostics() {
     const diag = {
       user: userId,
@@ -403,43 +411,46 @@ async function confirmNegotiation(decisionId: number) {
             </>
           ) : null}
         </section>
+
         {/* HUMAN–SYSTEM NEGOTIATION */}
-<section className={styles.panel}>
-  <div className={styles.panelTop}>
-    <div className={styles.panelTitle}>Human-System Negotiation</div>
-    <div className={styles.panelMeta}>AI + Human Gate</div>
-  </div>
+        <section className={styles.panel}>
+          <div className={styles.panelTop}>
+            <div className={styles.panelTitle}>Human-System Negotiation</div>
+            <div className={styles.panelMeta}>AI + Human Gate</div>
+          </div>
 
-  {negErr && (
-    <div className={styles.errorBox}>
-      <div className={styles.errorTitle}>Negotiation Error</div>
-      <div className={styles.errorText}>{negErr}</div>
-    </div>
-  )}
+          {negErr && (
+            <div className={styles.errorBox}>
+              <div className={styles.errorTitle}>Negotiation Error</div>
+              <div className={styles.errorText}>{negErr}</div>
+            </div>
+          )}
 
-  {!negotiation ? (
-    <div className={styles.note}>No negotiation data.</div>
-  ) : (
-    <>
-      <div className={styles.note}>
-        Latest Decision: {negotiation.latest_decision?.symbol} — {negotiation.latest_decision?.decision}
-      </div>
+          {!negotiation ? (
+            <div className={styles.note}>No negotiation data.</div>
+          ) : (
+            <>
+              <div className={styles.note}>
+                Latest Decision: {negotiation.latest_decision?.symbol} —{" "}
+                {negotiation.latest_decision?.decision}
+              </div>
 
-      <pre className={styles.pre}>
-        {JSON.stringify(negotiation.analysis, null, 2)}
-      </pre>
+              <pre className={styles.pre}>
+                {JSON.stringify(negotiation.analysis, null, 2)}
+              </pre>
 
-      {canConfirm && negotiation.latest_decision && (
-        <button
-          className={styles.btn}
-          onClick={() => confirmNegotiation(negotiation.latest_decision.id)}
-        >
-          Confirm Decision
-        </button>
-      )}
-    </>
-  )}
-</section>
+              {canConfirm && negotiation.latest_decision && (
+                <button
+                  className={styles.btn}
+                  onClick={() => confirmNegotiation(negotiation.latest_decision.id)}
+                >
+                  Confirm Decision
+                </button>
+              )}
+            </>
+          )}
+        </section>
+
         {/* TELEMETRY */}
         <section className={styles.panel}>
           <div className={styles.panelTop}>
@@ -542,9 +553,7 @@ async function confirmNegotiation(decisionId: number) {
                   <React.Fragment key={d.id}>
                     <tr
                       className={styles.row}
-                      onClick={() =>
-                        setExpanded(expanded === d.id ? null : d.id)
-                      }
+                      onClick={() => setExpanded(expanded === d.id ? null : d.id)}
                     >
                       <td className={styles.symbolCell}>{d.symbol}</td>
                       <td>{d.stance || "—"}</td>
@@ -588,9 +597,7 @@ async function confirmNegotiation(decisionId: number) {
                       <tr className={styles.expandRow}>
                         <td colSpan={canConfirm ? 7 : 6}>
                           <div className={styles.expandCard}>
-                            <div className={styles.expandTitle}>
-                              Forensic Replay
-                            </div>
+                            <div className={styles.expandTitle}>Forensic Replay</div>
 
                             <div className={styles.replayGrid}>
                               <div className={styles.replayKV}>
@@ -608,6 +615,28 @@ async function confirmNegotiation(decisionId: number) {
                               <div className={styles.replayKV}>
                                 <div className={styles.k}>Session</div>
                                 <div className={styles.v}>{d.session ?? "—"}</div>
+                              </div>
+
+                              {/* PHASE 3 — BLOCK 5 (Price + Targets) */}
+                              <div className={styles.replayKV}>
+                                <div className={styles.k}>Entry</div>
+                                <div className={styles.v}>{d.entry_price ?? "—"}</div>
+                              </div>
+                              <div className={styles.replayKV}>
+                                <div className={styles.k}>Stop</div>
+                                <div className={styles.v}>{d.stop_price ?? "—"}</div>
+                              </div>
+                              <div className={styles.replayKV}>
+                                <div className={styles.k}>Min Target</div>
+                                <div className={styles.v}>{d.min_target ?? "—"}</div>
+                              </div>
+                              <div className={styles.replayKV}>
+                                <div className={styles.k}>Max Target</div>
+                                <div className={styles.v}>{d.max_target ?? "—"}</div>
+                              </div>
+                              <div className={styles.replayKV}>
+                                <div className={styles.k}>Current</div>
+                                <div className={styles.v}>{d.current_price ?? "—"}</div>
                               </div>
                             </div>
 
