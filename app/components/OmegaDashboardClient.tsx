@@ -469,21 +469,20 @@ export default function OmegaDashboardClient() {
             />
 
             <select
-              className={styles.select}
-              value={stance}
-              onChange={(e) => setStance(e.target.value)}
-            >
-              <option value="ALL">All stances</option>
-              <option value="STAND_DOWN">STAND_DOWN</option>
-              <option value="PRIME">PRIME</option>
-              <option value="S+++">S+++</option>
-              <option value="S++">S++</option>
-              <option value="S+">S+</option>
-              <option value="S">S</option>
-              <option value="A">A</option>
-              <option value="B">B</option>
-              <option value="C">C</option>
-            </select>
+  className={styles.select}
+  value={stance}
+  onChange={(e) => setStance(e.target.value)}
+>
+  <option value="ALL">All stances</option>
+  <option value="ENTER_LONG">ENTER_LONG</option>
+  <option value="ENTER_SHORT">ENTER_SHORT</option>
+  <option value="HOLD_LONG">HOLD_LONG</option>
+  <option value="HOLD_SHORT">HOLD_SHORT</option>
+  <option value="HOLD_LONG_PAID">HOLD_LONG_PAID</option>
+  <option value="HOLD_SHORT_PAID">HOLD_SHORT_PAID</option>
+  <option value="STAND_DOWN">STAND_DOWN</option>
+  <option value="WAIT">WAIT</option>
+</select>
 
             <select
               className={styles.select}
