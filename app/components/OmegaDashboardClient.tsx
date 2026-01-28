@@ -11,6 +11,7 @@ type Decision = {
   decision?: string; // LONG/SHORT/STAND_DOWN etc
   side?: string;
   tier?: string;
+  authority?: string; 
   confidence?: number;
   stance?: string; // PRIME / STAND_DOWN etc
   regime?: string;
@@ -540,6 +541,7 @@ export default function OmegaDashboardClient() {
                   <th>Stance</th>
                   <th>Decision</th>
                   <th>Tier</th>
+                  <th>Authority</th> 
                   <th>Confidence</th>
                   <th>Regime</th>
                   {canConfirm ? <th>Confirm</th> : null}
@@ -557,8 +559,16 @@ export default function OmegaDashboardClient() {
                       <td>{d.stance || "—"}</td>
                       <td>{d.decision || "—"}</td>
                       <td>
-                        <span className={styles.tierBadge}>{d.tier || "—"}</span>
-                      </td>
+  <span className={styles.tierBadge}>{d.tier || "—"}</span>
+</td>
+
+<td>
+  {d.authority === "PRIME" ? (
+    <span className={styles.authorityPrime}>PRIME</span>
+  ) : (
+    <span className={styles.authorityNormal}>NORMAL</span>
+  )}
+</td>
                       <td>
                         <div className={styles.confWrap}>
                           <div className={styles.confBar}>
@@ -593,7 +603,7 @@ export default function OmegaDashboardClient() {
 
                     {expanded === d.id && (
                       <tr className={styles.expandRow}>
-                        <td colSpan={canConfirm ? 7 : 6}>
+                        <td colSpan={canConfirm ? 8 : 7}>
                           <div className={styles.expandCard}>
                             <div className={styles.expandTitle}>Forensic Replay</div>
 
