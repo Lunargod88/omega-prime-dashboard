@@ -19,6 +19,12 @@ type Decision = {
   rr_stop?: number;
   rr_min?: number;
   rr_max?: number;
+  memory_score?: number;
+  whale_band?: string;
+  hold_strength?: number;
+  continuation_efficiency?: number;
+  paid?: boolean;
+  decision_timeline?: any;
 
   // PHASE 3 — BLOCK 5 (Price + Targets)
   entry_price?: number;
@@ -647,10 +653,37 @@ export default function OmegaDashboardClient() {
                                 <div className={styles.v}>{d.current_price ?? "—"}</div>
                               </div>
                             </div>
+                              <div className={styles.replayKV}>
+  <div className={styles.k}>Memory</div>
+  <div className={styles.v}>{d.memory_score ?? "—"}</div>
+</div>
+
+<div className={styles.replayKV}>
+  <div className={styles.k}>Whale Band</div>
+  <div className={styles.v}>{d.whale_band ?? "—"}</div>
+</div>
+
+<div className={styles.replayKV}>
+  <div className={styles.k}>Hold Strength</div>
+  <div className={styles.v}>{d.hold_strength ?? "—"}</div>
+</div>
+
+<div className={styles.replayKV}>
+  <div className={styles.k}>Continuation</div>
+  <div className={styles.v}>{d.continuation_efficiency ?? "—"}</div>
+</div>
+
+<div className={styles.replayKV}>
+  <div className={styles.k}>Paid</div>
+  <div className={styles.v}>{d.paid ? "YES" : "NO"}</div>
+</div>
 
                             <pre className={styles.pre}>
                               {JSON.stringify(d.payload ?? d, null, 2)}
                             </pre>
+                            <pre className={styles.pre}>
+  {JSON.stringify(d.decision_timeline ?? {}, null, 2)}
+</pre>
                           </div>
                         </td>
                       </tr>
