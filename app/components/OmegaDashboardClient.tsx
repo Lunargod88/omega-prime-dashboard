@@ -25,6 +25,8 @@ type Decision = {
   continuation_efficiency?: number;
   paid?: boolean;
   decision_timeline?: any;
+  exit_reason?: string;
+  exit_quality?: string;
 
   // PHASE 3 — BLOCK 5 (Price + Targets)
   entry_price?: number;
@@ -630,6 +632,15 @@ export default function OmegaDashboardClient() {
                                 <div className={styles.k}>Session</div>
                                 <div className={styles.v}>{d.session ?? "—"}</div>
                               </div>
+                              <div className={styles.replayKV}>
+  <div className={styles.k}>Exit Reason</div>
+  <div className={styles.v}>{d.exit_reason ?? "—"}</div>
+</div>
+
+<div className={styles.replayKV}>
+  <div className={styles.k}>Exit Quality</div>
+  <div className={styles.v}>{d.exit_quality ?? "—"}</div>
+</div>
 
                               {/* PHASE 3 — BLOCK 5 (Price + Targets) */}
                               <div className={styles.replayKV}>
@@ -684,6 +695,13 @@ export default function OmegaDashboardClient() {
                             <pre className={styles.pre}>
   {JSON.stringify(d.decision_timeline ?? {}, null, 2)}
 </pre>
+                            <pre className={styles.pre}>
+  {JSON.stringify({
+    exit_reason: d.exit_reason,
+    exit_quality: d.exit_quality,
+  }, null, 2)}
+</pre>
+
                           </div>
                         </td>
                       </tr>
